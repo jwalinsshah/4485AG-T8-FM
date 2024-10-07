@@ -19,6 +19,7 @@ def detect_faults():
     signal_strength = random.uniform(-120.0, -40.0)  # in dBm
     packet_loss = random.uniform(0.0, 5.0)  # in percentage
 
+    # TODO: Configure these on GUI
     # Define thresholds for faults
     if latency > 75.0:
         return "High Latency", "red", f"Latency: {latency:.2f} ms"

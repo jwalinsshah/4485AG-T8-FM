@@ -26,11 +26,36 @@ def generate_html(request, alert_level: str, alert_message: Optional[str] = None
     else:
         text_color = "black"
 
+    # Create the title of the site
+    title = H1("Fault Management System", style="text-align: center;")
+
+    alert_config = Div(
+        Div(
+            H2("Add Alert"),
+            P("Configure an alert with the button below:"),
+            Button("Add Alert", id="alert-button"),
+            cls="column",
+            style="width: 45%; background-color: lightblue; padding: 20px; text-align: center;"
+        ),
+        Div(
+            H2("Configure Alerts"),
+            P("Configure your added alerts here."),
+            P("Settings options..."),
+            cls="column",
+            style="width: 45%; background-color: lightblue; padding: 20px; text-align: center;"
+        ),
+        cls="row",
+        style="display: flex; justify-content: center;"
+    )
+
     # Create the HTML structure with the alert panel
     alert_panel = Div(
+        H2("Alert notifications appear here."),
+        Div(
         alert_message,
         id="alert-panel",  # Set the ID to "alert-panel"
         style=f"padding: 10px; border: 1px solid black; background-color: {alert_level}; color: {text_color}; text-align: center;"
+        )
     )
 
     js_code = """function fetchAndUpdate() {
@@ -53,7 +78,7 @@ def generate_html(request, alert_level: str, alert_message: Optional[str] = None
     # Include the JavaScript script
     script_tag = Script(code=js_code)
 
-    return Html(alert_panel, script_tag)
+    return Html(title, Hr(), alert_config, alert_panel, script_tag)
 
 # Function to handle the alert logic
 async def handle_alert(alert_level: str, alert_message: Optional[str] = None):
