@@ -19,6 +19,18 @@ def detect_faults():
     signal_strength = random.uniform(-120.0, -40.0)  # in dBm
     packet_loss = random.uniform(0.0, 5.0)  # in percentage
 
+    # Post the metrics to the new_data endpoint
+    url = "http://localhost:5001/new_data"  # Replace with your app's URL
+    data = {
+        "latency": latency,
+        "signal_strength": signal_strength,
+        "packet_loss": packet_loss
+    }
+    response = requests.post(url, json=data)
+
+    if response.status_code != 200:
+        print("Error posting new data:", response.text)
+
     # TODO: Configure these on GUI
     # Define thresholds for faults
     if latency > 75.0:
@@ -55,10 +67,11 @@ def notify_fault(fault_type, alert_level, alert_message):
     data = {"alert_level": alert_level, "alert_message": alert_message}
     response = requests.post(url, json=data)
 
-    if response.status_code == 200:
-        print("Alert triggered successfully.")
-    else:
-        print("Error triggering alert:", response.text)
+    # if response.status_code == 200:
+    #     print("Alert triggered successfully.")
+    # else:
+    #     print("Error triggering alert:", response.text)
+
 
 
 # Step 5: Main Loop
@@ -72,6 +85,7 @@ def main():
             notify_fault(fault_type, alert_level, alert_message)  # Notify using print statements
         
         time.sleep(5)  # Wait for 5 seconds before checking again
+    
 
 if __name__ == "__main__":
     main()  # This starts the main function when the script is run directly

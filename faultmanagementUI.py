@@ -1,151 +1,198 @@
-import pandas as pd
 from fasthtml.common import *
-import time
-import threading
-import json
-from starlette.requests import Request
-from starlette.responses import StreamingResponse
-from sse_starlette.sse import EventSourceResponse
-import asyncio
+from pydantic import BaseModel
+from typing import Optional
 
-app = FastHTML()
+app, rt = fast_app(live=True)
 
-# Global variables to track alert level and last alert time
 alert_level = "green"
 alert_message = "All processes are working correctly."
-last_alert_time = None
 
-# Function to generate the HTML response with the alert panel
-def generate_html(request, alert_level: str, alert_message: Optional[str] = None):
+schema_data = []
+alerts = []
 
-    print(alert_level)
-    print(alert_message)
+# Used to display database schema information to the user.
+class SchemaData(BaseModel):
+    field_name: str
+    data_type: str
 
-    if alert_level == "green":
-        text_color = "white"
-    else:
-        text_color = "black"
+class Alert(BaseModel):
+    alert_title: str
+    alert_message: str
+    field_name: str
+    lower_bound: Optional[float] = None
+    higher_bound: Optional[float] = None
 
-    # Create the title of the site
-    title = H1("Fault Management System", style="text-align: center;")
+# Waits for a POST request once the schema is read.
+@app.post("/upload_schema")
+async def upload_schema(data: list[SchemaData]):
+    global schema_data
+    schema_data = data
+    return {"message": "Schema data received successfully"}
+
+# Returns a table with database schema information.
+def generate_schema_table():
+    table = Table(
+        Tr(
+            Th("Field Name", style="border: 1px solid white; font-weight: bold;"),
+            Th("Data Type", style="border: 1px solid white; font-weight: bold;"),
+        ),
+        style="border: 1px solid white;"
+    )
+
+    for field in schema_data:
+        table += Tr(
+            Td(field.field_name, style="border: 1px solid white;"),
+            Td(field.data_type, style="border: 1px solid white;"),
+            style="border: 1px solid white;"
+        )
+
+    return table
+
+@rt('/')
+def get():
+    global schema_data
+
+    title = "Super Cool Fault Management System"
+
+    #TODO: Use a pre-defined schema for the database. THIS IS FOR TESTING
+    schema_data = [
+        SchemaData(field_name="latency", data_type="FLOAT"),
+        SchemaData(field_name="signal_strength", data_type="FLOAT"),
+        SchemaData(field_name="packet_loss", data_type="FLOAT")
+    ]
+
+    table = generate_schema_table() # returns a table to display in the get endpoint
+
+    database_schema = Div(
+        H4("Database Schema"),
+        Table(
+            id="database-schema",
+            cls="table",
+            style="width: 50%; margin: auto;",
+        )
+    )
 
     alert_config = Div(
         Div(
-            H2("Add Alert"),
-            P("Configure an alert with the button below:"),
-            Button("Add Alert", id="alert-button"),
-            cls="column",
-            style="width: 45%; background-color: lightblue; padding: 20px; text-align: center;"
+            H2("Add an Alert:"),
+            Form(
+                Input(type="text", id="alert_title", placeholder="Alert Title", required=True),
+                Input(type="text", id="alert_message", name="alert_message", placeholder="Alert Message", required=True),
+                Select(
+                    *[Option(field.field_name, value=field.field_name) for field in schema_data],
+                    id="field-selector",
+                    name="field_name",
+                    required=True
+                ),
+                Input(type="number", id="lower_bound", name="lower_bound", placeholder="Lower Bound"),
+                Input(type="number", id="higher_bound", name="higher_bound", placeholder="Higher Bound"),
+                Button("Add Alert", id="alert-button", type="submit"),
+                hx_post="/add_alert",
+                hx_trigger="click",
+                hx_target="#active-alerts",
+                hx_swap="innerHTML",  # Swap only the content inside the alerts div
+                style="padding: 5px; text-align: center;"
+            )
         ),
         Div(
-            H2("Configure Alerts"),
-            P("Configure your added alerts here."),
-            P("Settings options..."),
-            cls="column",
-            style="width: 45%; background-color: lightblue; padding: 20px; text-align: center;"
+            H2("Active Alerts"),
+            Div(
+                *[
+                    Div(
+                        f"{alert.alert_title}: {alert.alert_message} (Field: {alert.field_name}, Bounds: {alert.lower_bound} - {alert.higher_bound})",
+                        Button("x", hx_post="/remove_alert", hx_trigger="click", hx_vals=f'{{"index": {index}}}', hx_target="#active-alerts", hx_swap="innerHTML", style="margin-left: 10px;"),
+                        style="padding: 5px; border: 1px solid black; margin: 5px;"
+                    )
+                    for index, alert in enumerate(alerts)
+                ],
+                id="active-alerts",
+                style="width: 50%; margin: auto;"
+            ),
+            style="width: 50%;"
         ),
         cls="row",
         style="display: flex; justify-content: center;"
     )
 
-    # Create the HTML structure with the alert panel
-    alert_panel = Div(
-        H2("Alert notifications appear here."),
+    alert_notifications = Div(
         Div(
-        alert_message,
-        id="alert-panel",  # Set the ID to "alert-panel"
-        style=f"padding: 10px; border: 1px solid black; background-color: {alert_level}; color: {text_color}; text-align: center;"
-        )
+            H2("Alert Notifications"),
+            hx_get="/new_data",
+            hx_target="#alert-container",
+            hx_swap="outerHTML",
+            style="margin: 20px;",
+            hx_trigger="interval:5000"
+        ),
+        id="alert-container",
     )
 
-    js_code = """function fetchAndUpdate() {
-                    fetch('/get_alert_data')
-                        .then(response => response.json())
-                        .then(data => {
-                            // Update the UI with the received data
-                            const alertPanel = document.getElementById("alert-panel");
-                            alertPanel.textContent = data.alert_message;
-                            alertPanel.style.backgroundColor = data.alert_level;
-                            alertPanel.style.color = data.alert_level === "green" ? "white" : "black";
-                        })
-                        .catch(error => {
-                            console.error("Error fetching data:", error);
-                        });
-                }
+    return Titled(title, Hr(), database_schema, table, Hr(), alert_config, Hr(), alert_notifications, style="text-align: center;")
 
-                setInterval(fetchAndUpdate, 1000); // Fetch data every second"""
+@app.post("/remove_alert")
+async def remove_alert(data: dict):
+    index = data.get("index")
+    if index is not None and 0 <= int(index) < len(alerts):
+        alerts.pop(int(index))
+        html_alerts = "".join(
+            f"""
+            <div style="padding: 5px; border: 1px solid black; margin: 5px;">
+                {alert.alert_title}: {alert.alert_message} (Field: {alert.field_name}, Bounds: {alert.lower_bound} - {alert.higher_bound})
+                <button onclick="removeAlert({idx})" style="margin-left: 10px;">x</button>
+            </div>
+            """
+            for idx, alert in enumerate(alerts)
+        )
+        return # {"success": True, "html": html_alerts}
+    return # {"success": False}
 
-    # Include the JavaScript script
-    script_tag = Script(code=js_code)
+@app.post("/add_alert")
+async def add_alert(alert: Alert):
+    # Add the alert to the alerts list
+    alerts.append(alert)
 
-    return Html(title, Hr(), alert_config, alert_panel, script_tag)
+    # Generate the HTML for the updated list of alerts
+    html_alerts = "".join(
+        f"""
+        <div style="padding: 5px; border: 1px solid black; margin: 5px;">
+            {alert.alert_title}: {alert.alert_message} (Field: {alert.field_name}, Bounds: {alert.lower_bound} - {alert.higher_bound})
+            <button hx-post="/remove_alert" hx-trigger="click" hx-vals='{{"index": {index}}}' hx-target="#active-alerts" hx-swap="innerHTML" style="margin-left: 10px;">x</button>
+        </div>
+        """
+        for index, alert in enumerate(alerts)
+    )
 
-# Function to handle the alert logic
-async def handle_alert(alert_level: str, alert_message: Optional[str] = None):
-    global last_alert_time
+    # Return the generated HTML for the alerts
+    return html_alerts
 
-    print(last_alert_time)
+@app.post("/new_data")
+async def new_data(data: dict):
+    global alert_level, alert_message
 
-    # Set the alert level and message
-    last_alert_time = time.time()
-    return True
+    print('New data received:', data)
 
-# Function to manage alerts in a separate thread
-async def alert_manager():
+    # Loop through all alerts and check if any alert conditions are triggered
+    for alert in alerts:
+        field_value = data.get(alert.field_name)
+        if field_value is not None:
+            if (alert.lower_bound is not None and field_value < alert.lower_bound) or \
+                (alert.higher_bound is not None and field_value > alert.higher_bound):
+                alert_level = "red"
+                alert_message = f"Alert: {alert.alert_title} - {alert.alert_message}"
 
-    while True:
-        await asyncio.sleep(0.1)
-        global last_alert_time
-        global alert_message
-        global alert_level
+                # Generate a dismissible alert HTML
+                dismissible_alert_html = f"""
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <strong>{alert.alert_title}!</strong> {alert.alert_message}.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                """
+                return dismissible_alert_html
 
+    # No alerts triggered, reset alert level and message
+    alert_level = "green"
+    alert_message = "All processes are working correctly."
 
-# Start the alert manager thread
-alert_thread = threading.Thread(target=alert_manager)
-alert_thread.start()
-
-# Route for the main page
-@app.get("/")
-async def home(request: Request):
-    global alert_message
-    global alert_level
-
-    return generate_html(request, alert_level, alert_message)
-
-# Endpoint to handle POST requests and trigger alerts
-@app.post("/trigger_alert")
-async def trigger_alert(request: Request):
-    global alert_message
-    global alert_level
-    try:
-        data = await request.json()
-
-        alert_level = data.get("alert_level", "green")
-        alert_message = data.get("alert_message", "All processes are working correctly.")
-
-        print(alert_level)
-        print(alert_message)
-
-        await handle_alert(alert_level, alert_message)
-
-        return {"message": "Alert triggered successfully"}
-    except Exception as e:
-        return {"error": f"Invalid JSON data provided: {e}"}
-    
-# Endpoint to handle GET requests for alert data
-@app.get("/get_alert_data")
-async def get_alert_data():
-    global last_alert_time
-    global alert_level
-    global alert_message
-    print(time.time())
-    if last_alert_time and time.time() - last_alert_time > 3:
-        last_alert_time = None
-        alert_level = "green"
-        alert_message = "All processes are working correctly."
-        print("Resetting alert")
-
-    return {"alert_level": alert_level, "alert_message": alert_message}
-    
+    # No alert to show, return an empty string
+    return ""
 
 serve()
