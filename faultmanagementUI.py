@@ -350,8 +350,8 @@ async def get_alerts():
             """
             for alert in triggered_alerts
         ])
-        # Return an HTML update instruction for HTMX to update the alert container
-        return Html(dismissible_alerts_html)
+        # Return an HTML update instruction for HTMX to update the alert
+        return dismissible_alerts_html
     else:
         alert_level = "green"
         alert_message = "All processes are working correctly."
