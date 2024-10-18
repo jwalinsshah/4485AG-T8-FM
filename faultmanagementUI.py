@@ -20,6 +20,7 @@ alert_message = "All processes are working correctly."
 
 schema_data = []
 alerts = []
+triggered_alerts = []
 
 # Used to display database schema information to the user.
 class SchemaData(BaseModel):
@@ -38,6 +39,13 @@ uploaded_db_file = None  # Global variable to store uploaded database file path
 
 @rt('/')
 def get():
+    
+    # Include Bootstrap CSS and JS
+    bootstrap_css = Link(rel="stylesheet", href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css", integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T", crossorigin="anonymous")
+    jQuery_js = Script(src="https://code.jquery.com/jquery-3.3.1.slim.min.js", integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo", crossorigin="anonymous")
+    popper_js = Script(src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js", integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1", crossorigin="anonymous")
+    bootstrap_js = Script(src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js", integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM", crossorigin="anonymous")
+
     title = "Super Fault Management System"
     schema_data = [
             SchemaData(field_name="latency", data_type="FLOAT"),
@@ -129,20 +137,9 @@ def get():
     # Alert container
     alert_container = Div(
         id='alert-container',
-        style='margin: 20px;',
+        hx_get='/new_data',
+        hx_trigger='every 3s',
     )
-
-    # Alert notifications
-    alert_notifications = Div(
-    Div(
-        H2("Alert Notifications"),
-        Div(id="alert-container"),
-        hx_get="/new_data",
-        hx_target="#alert-container",
-        hx_swap="innerHTML",
-        hx_trigger="every 5s"
-    )
-)
 
     # return Titled(
     #     title,
@@ -163,6 +160,12 @@ def get():
     
     return Titled(
         title, 
+        Head(
+            # bootstrap_css,
+            jQuery_js,
+            popper_js,
+            bootstrap_js
+        ),
         Hr(), 
         database_schema_div, 
         table_selector_div, 
@@ -172,7 +175,6 @@ def get():
         alert_config, 
         Hr(), 
         alert_container,
-        alert_notifications, 
         style="text-align: center;")
 
 
@@ -315,11 +317,9 @@ async def remove_alert(request: Request):
 
 @app.post("/new_data")
 async def new_data(data: dict):
-    global alert_level, alert_message
+    global alert_level, alert_message, triggered_alerts
 
     print('New data received:', data)
-
-    triggered_alerts = []
 
     for alert in alerts:
         field_value = data.get(alert.field_name)
@@ -327,25 +327,36 @@ async def new_data(data: dict):
             if (alert.lower_bound is not None and field_value < alert.lower_bound) or \
                 (alert.higher_bound is not None and field_value > alert.higher_bound):
                 triggered_alerts.append(alert)
+    
+@app.get("/new_data")
+async def get_alerts():
+    global alert_level, alert_message, triggered_alerts
 
     if triggered_alerts:
         alert_level = "red"
         alert_message = "Multiple alerts triggered"
 
+        print("Alerts triggered!!!!!!!!:", triggered_alerts)
+
+       # Generate the dismissible alert HTML
         dismissible_alerts_html = "".join([
             f"""
-            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <div class="alert alert-warning alert-dismissible fade show" role="alert">
                 <strong>{alert.alert_title}!</strong> {alert.alert_message}.
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
             </div>
             """
             for alert in triggered_alerts
         ])
-        return dismissible_alerts_html
+        # Return an HTML update instruction for HTMX to update the alert container
+        return Html(dismissible_alerts_html)
     else:
         alert_level = "green"
         alert_message = "All processes are working correctly."
         return ""
+
 
 @app.get("/api/alerts")
 async def get_alerts_api():
