@@ -54,16 +54,17 @@ def get():
     ]
     # Database upload form
     database_upload_form = Div(
-        H2("Upload Database"),
+        H2("Upload Database or CSV"),
         Form(
-            Input(type="file", id="database_file", name="database_file", accept=".db"),
+            Input(type="file", id="database_file", name="database_file", accept=".db, .csv"),
             Button("Upload", type="submit"),
             enctype="multipart/form-data",
             hx_post="/upload_database",
             hx_target="#table-selector-div",
             hx_swap="innerHTML",
             style="padding: 5px; text-align: center;"
-        )
+        ),
+        P("Acceptable file types: .db, .csv", style="color: gray; text-align: center;")
     )
 
     # Div to hold table selector
@@ -97,7 +98,7 @@ def get():
             H2("Add an Alert:"),
             Form(
                 Input(type="text", id="alert_title", placeholder="Alert Title", required=True),
-                Input(type="text", id="alert_message", name="alert_message", placeholder="Alert Message", required=True),
+                Input(type="text", id="alert_message", placeholder="Alert Message", required=True),
                 Select(
                     *[Option(field.field_name, value=field.field_name) for field in schema_data],
                     id="field-selector",
@@ -108,7 +109,7 @@ def get():
                 Input(type="number", id="higher_bound", name="higher_bound", placeholder="Higher Bound"),
                 Button("Add Alert", id="alert-button", type="submit"),
                 hx_post="/add_alert",
-                hx_trigger="click",
+                hx_trigger="click from:#alert-button",  # Trigger only when the alert-button is clicked
                 hx_target="#active-alerts",
                 hx_swap="innerHTML",  # Swap only the content inside the alerts div
                 style="padding: 5px; text-align: center;"
@@ -140,23 +141,6 @@ def get():
         hx_get='/new_data',
         hx_trigger='every 3s',
     )
-
-    # return Titled(
-    #     title,
-    #     Hr(),
-    #     database_upload_form,
-    #     table_selector_div,
-    #     database_schema_div,
-    #     Hr(),
-    #     schema_upload_form,
-    #     Hr(),
-    #     alert_config,
-    #     Hr(),
-    #     alert_container,
-    #     alert_notifications,
-    #     style="text-align: center;"
-    
-    # )
     
     return Titled(
         title, 
@@ -166,7 +150,8 @@ def get():
             popper_js,
             bootstrap_js
         ),
-        Hr(), 
+        Hr(),
+        database_upload_form, 
         database_schema_div, 
         table_selector_div, 
         Hr(),
@@ -350,7 +335,7 @@ async def get_alerts():
             """
             for alert in triggered_alerts
         ])
-        # Return an HTML update instruction for HTMX to update the alert
+        # Return an HTML update instruction for HTMX to update the alert container
         return dismissible_alerts_html
     else:
         alert_level = "green"
