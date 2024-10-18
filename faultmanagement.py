@@ -2,6 +2,7 @@ import sqlite3
 import random
 import time
 import requests
+import json
 
 # Step 1: Set Up the SQLite Database
 def setup_database():
@@ -46,7 +47,6 @@ def detect_faults():
     elif packet_loss > 2.0:
         return "High Packet Loss", "yellow", f"Packet Loss: {packet_loss:.2f}%"
     
-    
     return None, None, None  # No fault detected
 
 # Step 3: Fault Logging Function
@@ -67,13 +67,6 @@ def notify_fault(fault_type, alert_level, alert_message):
     data = {"alert_level": alert_level, "alert_message": alert_message}
     response = requests.post(url, json=data)
 
-    # if response.status_code == 200:
-    #     print("Alert triggered successfully.")
-    # else:
-    #     print("Error triggering alert:", response.text)
-
-
-
 # Step 5: Main Loop
 def main():
     setup_database()  # Set up the database at the start
@@ -85,7 +78,6 @@ def main():
             notify_fault(fault_type, alert_level, alert_message)  # Notify using print statements
         
         time.sleep(5)  # Wait for 5 seconds before checking again
-    
 
 if __name__ == "__main__":
     main()  # This starts the main function when the script is run directly
