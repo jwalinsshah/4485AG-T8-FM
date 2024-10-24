@@ -21,7 +21,7 @@ def detect_faults():
     packet_loss = random.uniform(0.0, 5.0)  # in percentage
 
     # Post the metrics to the new_data endpoint
-    url = "http://localhost:5001/new_data"  # Replace with your app's URL
+    url = "http://localhost:8000/new_data"  # Corrected URL for new_data endpoint
     data = {
         "latency": latency,
         "signal_strength": signal_strength,
@@ -32,7 +32,6 @@ def detect_faults():
     if response.status_code != 200:
         print("Error posting new data:", response.text)
 
-    # TODO: Configure these on GUI
     # Define thresholds for faults
     if latency > 75.0:
         return "High Latency", "red", f"Latency: {latency:.2f} ms"
@@ -63,9 +62,12 @@ def notify_fault(fault_type, alert_level, alert_message):
     alert_message = f"ALERT: {fault_type} - {alert_message}"
     print(alert_message)  # Print to console for immediate feedback
 
-    url = "http://localhost:5001/trigger_alert"  # Replace with your app's URL
+    url = "http://localhost:8000/trigger_alert"  # Corrected URL for trigger_alert endpoint
     data = {"alert_level": alert_level, "alert_message": alert_message}
     response = requests.post(url, json=data)
+
+    if response.status_code != 200:
+        print("Error notifying alert:", response.text)
 
 # Step 5: Main Loop
 def main():

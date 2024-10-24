@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Fault Management System</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Super Fault Management System</h2>
+        <hr/>
+
+        <!-- Database Upload Form -->
+        <h3>Upload Database or CSV</h3>
+        <form action="/upload_database" method="post" enctype="multipart/form-data">
+            <input type="file" name="database_file" accept=".db, .csv"/>
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+        <p>Acceptable file types: .db, .csv</p>
+
+        <!-- Schema Upload Form -->
+        <h3>Upload Schema Data</h3>
+        <form action="/upload_schema" method="post">
+            <textarea name="schema_data" placeholder="Enter schema data here..." rows="10" cols="50"></textarea>
+            <button type="submit" class="btn btn-primary">Upload Schema</button>
+        </form>
+        
+        <hr/>
+
+        <!-- Alerts Section -->
+        <h3>Active Alerts</h3>
+        <div>
+            <p>Status: {{ alert_level }} - {{ alert_message }}</p>
+            {% for alert in alerts %}
+                <div>
+                    <p>{{ alert.alert_title }}: {{ alert.alert_message }} (Field: {{ alert.field_name }}, Bounds: {{ alert.lower_bound }} - {{ alert.higher_bound }})</p>
+                </div>
+            {% endfor %}
+        </div>
+
+        <hr/>
+
+        <!-- Add Alert Form -->
+        <h3>Add an Alert</h3>
+        <form action="/add_alert" method="post">
+            <input type="text" name="alert_title" placeholder="Alert Title" required/>
+            <input type="text" name="alert_message" placeholder="Alert Message" required/>
+            <select name="field_name" required>
+                {% for field in schema_data %}
+                    <option value="{{ field.field_name }}">{{ field.field_name }}</option>
+                {% endfor %}
+            </select>
+            <input type="number" name="lower_bound" placeholder="Lower Bound"/>
+            <input type="number" name="higher_bound" placeholder="Higher Bound"/>
+            <button type="submit" class="btn btn-primary">Add Alert</button>
+        </form>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js"></script>
+</body>
+</html>
