@@ -1,14 +1,71 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
+# Necessary pip installs:
+# pip install fastapi python-jose requests python-dotenv uvicorn
+
+from typing import Optional
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from jose import jwt, JWTError
 from pydantic import BaseModel
-from typing import Optional, List
+import requests
+from fastapi.security import OAuth2AuthorizationCodeBearer
+from fastapi.templating import Jinja2Templates
+from dotenv import load_dotenv
+import os
 import sqlite3
 import json
-import os
 
-# Initialize FastAPI app
+# Load environment variables from .env
+load_dotenv()
+
 app = FastAPI()
+
+# Auth0 configuration
+AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
+API_AUDIENCE = os.getenv("AUTH0_AUDIENCE")
+ALGORITHMS = ["RS256"]
+
+# OAuth2 URL for Auth0
+oauth2_scheme = OAuth2AuthorizationCodeBearer(
+    authorizationUrl=f"https://{AUTH0_DOMAIN}/authorize",
+    tokenUrl=f"https://{AUTH0_DOMAIN}/oauth/token"
+)
+
+# Custom JWT validation
+def verify_jwt(token: str = Depends(oauth2_scheme)):
+    try:
+        header = jwt.get_unverified_header(token)
+        rsa_key = get_rsa_key(header)
+        if rsa_key:
+            payload = jwt.decode(
+                token,
+                rsa_key,
+                algorithms=ALGORITHMS,
+                audience=API_AUDIENCE,
+                issuer=f"https://{AUTH0_DOMAIN}/"
+            )
+            return payload
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+def get_rsa_key(header):
+    jwks_url = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
+    jwks = requests.get(jwks_url).json()
+    for key in jwks["keys"]:
+        if key["kid"] == header["kid"]:
+            return {
+                "kty": key["kty"],
+                "kid": key["kid"],
+                "use": key["use"],
+                "n": key["n"],
+                "e": key["e"],
+            }
+    return None
+
+# Define restricted endpoint
+@app.get("/restricted")
+async def restricted_access(payload: dict = Depends(verify_jwt)):
+    return {"message": "You have access", "payload": payload}
 
 # Set up Jinja2 templates
 templates = Jinja2Templates(directory="templates")
@@ -86,21 +143,24 @@ async def upload_schema(request: Request):
     except Exception as e:
         return HTMLResponse(f"Error parsing schema data: {e}")
 
-# Other routes (add alerts, select table, etc.) can be defined here
+# Route to handle new data
 @app.post("/new_data")
 async def receive_new_data(data: dict):
-    # Process the incoming data here
     print("Received new data:", data)
     return {"message": "Data received successfully"}
 
-class Alert(BaseModel):
-    alert_level: str
-    alert_message: str
-
+# Route to trigger an alert
 @app.post("/trigger_alert")
 async def trigger_alert(alert: Alert):
-    print(f"Alert triggered: Level - {alert.alert_level}, Message - {alert.alert_message}")
-    return {"message": "Alert received successfully"}
+    global alerts, alert_level, alert_message
+    print(f"Alert triggered: Title - {alert.alert_title}, Message - {alert.alert_message}")
+
+    # Update alert status
+    alerts.append(alert)
+    alert_level = "yellow"  # Assuming triggered alerts change the level to yellow
+    alert_message = alert.alert_message
+
+    return {"message": "Alert received successfully", "alert": alert}
 
 # To run the app, use `uvicorn` from the command line
-# Command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+# Command: uvicorn mainUI:app --reload

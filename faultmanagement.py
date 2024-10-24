@@ -57,17 +57,56 @@ def log_fault(fault_type, alert_level, alert_message):
     conn.commit()
     conn.close()
 
+# Global variable to track active alerts
+active_alerts = set()
+
 # Step 4: Notify Fault through Print Statements
 def notify_fault(fault_type, alert_level, alert_message):
+    # Format the alert message
     alert_message = f"ALERT: {fault_type} - {alert_message}"
     print(alert_message)  # Print to console for immediate feedback
 
+    # Determine the field name based on the fault type
+    field_name = ""
+    if "Latency" in fault_type:
+        field_name = "latency"
+    elif "Signal Strength" in fault_type:
+        field_name = "signal_strength"
+    elif "Packet Loss" in fault_type:
+        field_name = "packet_loss"
+
+    # Check if this fault type has already been alerted
+    alert_identifier = (fault_type, alert_level)
+    if alert_identifier in active_alerts:
+        return  # Alert has already been sent; no need to notify again
+
+    # Add the alert identifier to the active alerts set
+    active_alerts.add(alert_identifier)
+
+    # Construct the payload for the alert
     url = "http://localhost:8000/trigger_alert"  # Corrected URL for trigger_alert endpoint
-    data = {"alert_level": alert_level, "alert_message": alert_message}
+    data = {
+        "alert_title": fault_type,  # Assign fault_type to alert_title
+        "alert_message": alert_message,  # Include the full alert message
+        "field_name": field_name,  # Set the corresponding field name
+        "lower_bound": None,  # Set bounds if applicable; can be adjusted as needed
+        "higher_bound": None
+    }
+
+    # Debugging: Print the payload to verify
+    print("Sending alert data:", data)
+
+    # Send the POST request
     response = requests.post(url, json=data)
 
+    # Check the response status
     if response.status_code != 200:
         print("Error notifying alert:", response.text)
+
+# Reset active alerts after a period (optional)
+def reset_alerts():
+    global active_alerts
+    active_alerts.clear()
 
 # Step 5: Main Loop
 def main():
@@ -80,6 +119,11 @@ def main():
             notify_fault(fault_type, alert_level, alert_message)  # Notify using print statements
         
         time.sleep(5)  # Wait for 5 seconds before checking again
+
+        # Optional: Reset alerts every minute or so
+        if time.time() % 60 < 5:  # Resets every minute
+            reset_alerts()
+
 
 if __name__ == "__main__":
     main()  # This starts the main function when the script is run directly
