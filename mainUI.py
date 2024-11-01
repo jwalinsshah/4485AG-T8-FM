@@ -1,6 +1,3 @@
-# Necessary pip installs:
-# pip install fastapi python-jose requests python-dotenv uvicorn
-
 from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import HTMLResponse

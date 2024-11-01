@@ -1,3 +1,8 @@
 fastapi
 pydantic
 starlette
+python-jose
+jose
+requests
+python-dotenv
+uvicorn
